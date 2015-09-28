@@ -1,0 +1,706 @@
+diff -rupN backports-build/drivers/net/wireless/ath/ath9k/common.c backports-build-fin/drivers/net/wireless/ath/ath9k/common.c
+--- backports-build/drivers/net/wireless/ath/ath9k/common.c	2015-09-09 15:15:05.618004645 +0200
++++ backports-build-fin/drivers/net/wireless/ath/ath9k/common.c	2015-09-04 14:15:43.658463157 +0200
+@@ -179,13 +179,13 @@ void ath9k_cmn_rx_skb_postprocess(struct
+ 
+ 	ext_rx_status->magic_code = IEEE80211_EXT_RX_STATUS_MAGIC;
+ 
+-	ext_rx_status->rssi_ctl[0] = rx_stats->rs_rssi_ctl0;
+-	ext_rx_status->rssi_ctl[1] = rx_stats->rs_rssi_ctl1;
+-	ext_rx_status->rssi_ctl[2] = rx_stats->rs_rssi_ctl2;
++	ext_rx_status->rssi_ctl[0] = rx_stats->rs_rssi_ctl[0];
++	ext_rx_status->rssi_ctl[1] = rx_stats->rs_rssi_ctl[1];
++	ext_rx_status->rssi_ctl[2] = rx_stats->rs_rssi_ctl[2];
+ 
+-	ext_rx_status->rssi_ext[0] = rx_stats->rs_rssi_ext0;
+-	ext_rx_status->rssi_ext[1] = rx_stats->rs_rssi_ext1;
+-	ext_rx_status->rssi_ext[2] = rx_stats->rs_rssi_ext2;
++	ext_rx_status->rssi_ext[0] = rx_stats->rs_rssi_ext[0];
++	ext_rx_status->rssi_ext[1] = rx_stats->rs_rssi_ext[1];
++	ext_rx_status->rssi_ext[2] = rx_stats->rs_rssi_ext[2];
+ 
+ 	ext_rx_status->evm[0] = rx_stats->evm0;
+ 	ext_rx_status->evm[1] = rx_stats->evm1;
+diff -rupN backports-build/drivers/net/wireless/ath/ath9k/init.c backports-build-fin/drivers/net/wireless/ath/ath9k/init.c
+--- backports-build/drivers/net/wireless/ath/ath9k/init.c	2015-09-09 15:15:05.770004641 +0200
++++ backports-build-fin/drivers/net/wireless/ath/ath9k/init.c	2015-09-04 12:19:16.514642353 +0200
+@@ -25,6 +25,10 @@
+ 
+ #include "ath9k.h"
+ 
++#include "sysfs.h"
++#include "wndr3700.h"
++
++
+ struct ath9k_eeprom_ctx {
+ 	struct completion complete;
+ 	struct ath_hw *ah;
+diff -rupN backports-build/drivers/net/wireless/ath/ath9k/sysfs.c backports-build-fin/drivers/net/wireless/ath/ath9k/sysfs.c
+--- backports-build/drivers/net/wireless/ath/ath9k/sysfs.c	2015-09-09 15:15:05.738004642 +0200
++++ backports-build-fin/drivers/net/wireless/ath/ath9k/sysfs.c	2015-09-04 13:59:41.090487844 +0200
+@@ -4,12 +4,14 @@
+ #include "ath9k.h"
+ #include "reg.h"
+ 
++#include "sysfs.h"
++
+ 
+ static ssize_t ath9k_attr_show_channel_utility(struct device *dev,
+ 			struct device_attribute *attr,
+ 			char *buf)
+ {
+-	struct ath_softc *sc = ath9k_dev_to_softc(dev); //see http://permalink.gmane.org/gmane.comp.embedded.openwrt.devel/7390
++  struct ath_softc *sc = ath9k_dev_to_softc(dev); //see http://permalink.gmane.org/gmane.comp.embedded.openwrt.devel/7390
+   struct ath_common *common = ath9k_hw_common(sc->sc_ah);
+ 
+   u32 cycles, busy_cycles, rx_cycles, tx_cycles;
+@@ -21,9 +23,6 @@ static ssize_t ath9k_attr_show_channel_u
+ 	                                 busy, rx, tx, cycles, busy_cycles, rx_cycles, tx_cycles);
+ }
+ 
+-static DEVICE_ATTR(channel_utility, S_IRUGO,
+-		   ath9k_attr_show_channel_utility, NULL);
+-
+ static struct attribute *ath9k_sysfs_entries_stats[] = {
+ 	&dev_attr_channel_utility.attr,
+ 	NULL
+diff -rupN backports-build/drivers/net/wireless/ath/ath9k/sysfs.h backports-build-fin/drivers/net/wireless/ath/ath9k/sysfs.h
+--- backports-build/drivers/net/wireless/ath/ath9k/sysfs.h	1970-01-01 01:00:00.000000000 +0100
++++ backports-build-fin/drivers/net/wireless/ath/ath9k/sysfs.h	2015-09-04 14:08:32.382474218 +0200
+@@ -0,0 +1,29 @@
++#include <linux/device.h>
++#include <linux/pci.h>
++
++#include "ath9k.h"
++#include "reg.h"
++
++
++static ssize_t ath9k_attr_show_channel_utility(struct device *dev,
++			struct device_attribute *attr,
++			char *buf);
++static DEVICE_ATTR(channel_utility, S_IRUGO,
++		   ath9k_attr_show_channel_utility, NULL);
++
++
++
++static inline struct ath_softc *ath9k_dev_to_softc(struct device *dev)
++{
++        struct ieee80211_hw *hw = dev_get_drvdata(dev);
++        struct ath_softc *sc = hw->priv;
++
++        return sc;
++}
++
++
++int
++ath9k_sysfs_register(struct ath_softc *sc);
++
++void
++ath9k_sysfs_unregister(struct ath_softc *sc);
+diff -rupN backports-build/drivers/net/wireless/ath/ath9k/wndr3700.c backports-build-fin/drivers/net/wireless/ath/ath9k/wndr3700.c
+--- backports-build/drivers/net/wireless/ath/ath9k/wndr3700.c	2015-09-09 15:15:05.602004645 +0200
++++ backports-build-fin/drivers/net/wireless/ath/ath9k/wndr3700.c	2015-09-04 12:16:56.046645955 +0200
+@@ -12,6 +12,4 @@ static void wndr3700_init_antenna(struct
+ 	ath9k_hw_set_gpio(ah, 8, 0);
+ 	ath9k_hw_set_gpio(ah, 9, 1);
+ }
+-#else
+-static inline void wndr3700_init_antenna(struct ath_hw *ah) {}
+ #endif /* CONFIG_ATHEROS_AR71XX */
+diff -rupN backports-build/drivers/net/wireless/ath/ath9k/wndr3700.h backports-build-fin/drivers/net/wireless/ath/ath9k/wndr3700.h
+--- backports-build/drivers/net/wireless/ath/ath9k/wndr3700.h	1970-01-01 01:00:00.000000000 +0100
++++ backports-build-fin/drivers/net/wireless/ath/ath9k/wndr3700.h	2015-09-04 12:16:33.966646522 +0200
+@@ -0,0 +1,5 @@
++#ifdef CONFIG_ATHEROS_AR71XX
++static void wndr3700_init_antenna(struct ath_hw *ah);
++#else
++static inline void wndr3700_init_antenna(struct ath_hw *ah) {}
++#endif /* CONFIG_ATHEROS_AR71XX */
+diff -rupN backports-build/include/net/ieee80211_radiotap.h backports-build-fin/include/net/ieee80211_radiotap.h
+--- backports-build/include/net/ieee80211_radiotap.h	2015-09-09 15:15:10.494004520 +0200
++++ backports-build-fin/include/net/ieee80211_radiotap.h	2015-09-05 23:02:37.491297403 +0200
+@@ -214,7 +214,11 @@ enum ieee80211_radiotap_type {
+ 	IEEE80211_RADIOTAP_MCS = 19,
+ 	IEEE80211_RADIOTAP_AMPDU_STATUS = 20,
+ 	IEEE80211_RADIOTAP_VHT = 21,
+- 
++
++	IEEE80211_RADIOTAP_MCS_SGI = 22,
++	IEEE80211_RADIOTAP_MCS_FMT_GF = 23,
++	IEEE80211_RADIOTAP_MCS_FEC_LDPC = 24,
++
+ 	/**
+ 	 * BRN_EXTENTION
+ 	**/
+diff -rupN backports-build/include/net/mac80211.h backports-build-fin/include/net/mac80211.h
+--- backports-build/include/net/mac80211.h	2015-09-09 15:15:10.494004520 +0200
++++ backports-build-fin/include/net/mac80211.h	2015-09-05 22:57:53.167304695 +0200
+@@ -1048,7 +1048,7 @@ enum mac80211_rx_flags {
+ 	RX_FLAG_MACTIME_END		= BIT(21),
+ 	RX_FLAG_VHT			= BIT(22),
+ 	RX_FLAG_LDPC			= BIT(23),
+-	RX_FLAG_INC_EXT_STATE = BIT(24), //BRN
++	RX_FLAG_INC_EXT_STATE		= BIT(24), //BRN
+ 	RX_FLAG_STBC_MASK		= BIT(26) | BIT(27),
+ 	RX_FLAG_10MHZ			= BIT(28),
+ 	RX_FLAG_5MHZ			= BIT(29),
+diff -rupN backports-build/net/mac80211/iface.c backports-build-fin/net/mac80211/iface.c
+--- backports-build/net/mac80211/iface.c	2015-09-09 15:15:02.278004730 +0200
++++ backports-build-fin/net/mac80211/iface.c	2015-09-04 14:21:28.322454318 +0200
+@@ -149,6 +149,7 @@ void ieee80211_recalc_idle(struct ieee80
+ 
+ static int ieee80211_change_mtu(struct net_device *dev, int new_mtu)
+ {
++	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
+ 	if ( sdata->vif.type != NL80211_IFTYPE_MONITOR ) { //BRN
+ 
+ 	if (new_mtu < 256 || new_mtu > IEEE80211_MAX_DATA_LEN)
+diff -rupN backports-build/net/mac80211/rx.c backports-build-fin/net/mac80211/rx.c
+--- backports-build/net/mac80211/rx.c	2015-09-09 15:15:02.270004730 +0200
++++ backports-build-fin/net/mac80211/rx.c	2015-09-05 23:21:25.975268461 +0200
+@@ -113,7 +113,7 @@ ieee80211_rx_radiotap_hdrlen(struct ieee
+ 	if (ieee80211_hw_check(&local->hw, SIGNAL_DBM))
+ 		len += 1;
+ 
+-	if (ieee80211_hw_check(&local->hw, IEEE80211_HW_NOISE_DBM)) //BRN
++	if (ieee80211_hw_check(&local->hw, NOISE_DBM)) //BRN
+ 		len += 1;                                                 //BRN
+  
+ 	/* antenna field, if we don't have per-chain info */
+@@ -318,7 +318,7 @@ ieee80211_add_rx_radiotap_header(struct
+ 	}
+ 
+ 	/* IEEE80211_RADIOTAP_DBM_ANTNOISE */
+-	if (local->hw.flags & IEEE80211_HW_NOISE_DBM) {
++	if (ieee80211_hw_check(&local->hw, NOISE_DBM)) {
+ 		*pos = status->noise;
+ 		rthdr->it_present |=
+ 			cpu_to_le32(1 << IEEE80211_RADIOTAP_DBM_ANTNOISE);
+@@ -354,7 +354,7 @@ ieee80211_add_rx_radiotap_header(struct
+ 																																								 IEEE80211_RADIOTAP_MCS_HAVE_SP |
+ 																																								 IEEE80211_RADIOTAP_MCS_HAVE_STBC);
+ 
+-		*pos++ = local->hw.radiotap_mcs_details
++		*pos++ = local->hw.radiotap_mcs_details |
+ 			 /*BRN*/
+ 			 IEEE80211_RADIOTAP_MCS_HAVE_FMT |
+ 			 IEEE80211_RADIOTAP_MCS_HAVE_FEC |
+@@ -374,13 +374,13 @@ ieee80211_add_rx_radiotap_header(struct
+ 		*pos |= stbc << IEEE80211_RADIOTAP_MCS_STBC_SHIFT;
+ 		/*BRN*/
+ 		if (status->flag & RX_FLAG_SHORTPRE)
+-			*pos |= IEEE80211_RADIOTAP_MCS_SP;
+-		if (status->flag & RX_FLAG_GF) //TODO: can receiver detect that ??
++			*pos |= IEEE80211_RADIOTAP_MCS_HAVE_SP;
++		if (status->flag & RX_FLAG_HT_GF) //TODO: can receiver detect that ??
+ 			*pos |= IEEE80211_RADIOTAP_MCS_FMT_GF;
+-		if (status->flag & RX_FLAG_FEC_LDPC)
++		if (status->flag & RX_FLAG_LDPC)
+ 			*pos |= IEEE80211_RADIOTAP_MCS_FEC_LDPC;
+-		if (status->flag & RX_FLAG_STBC)
+-			*pos |= IEEE80211_RADIOTAP_MCS_STBC;
++		if (status->flag & RX_FLAG_STBC_MASK)
++			*pos |= IEEE80211_RADIOTAP_MCS_HAVE_STBC;
+ 		/*BRN end*/	
+ 		pos++;
+ 		*pos++ = status->rate_idx;
+@@ -3098,6 +3098,17 @@ static void ieee80211_rx_cooked_monitor(
+ 	struct ieee80211_rx_status *status = IEEE80211_SKB_RXCB(skb);
+ 	int needed_headroom;
+ 
++	struct ieee80211_extended_rx_status ext_rx_status;
++
++	if ( (status->flag & RX_FLAG_INC_EXT_STATE) != 0 ) {
++		memcpy((void*)&ext_rx_status, (void*)(skb->data + skb->len - sizeof(struct ieee80211_extended_rx_status)), sizeof(struct ieee80211_extended_rx_status));
++
++		//printk("Magic: %d Len: %d\n", ext_rx_status.magic_code, ext_rx_status.size);
++
++		//skb_trim(origskb, origskb->len - sizeof(struct ieee80211_extended_rx_status));
++	}
++	/* BRN */
++
+ 	/*
+ 	 * If cooked monitor has been processed already, then
+ 	 * don't do it again. If not, set the flag.
+@@ -3120,8 +3131,15 @@ static void ieee80211_rx_cooked_monitor(
+ 		goto out_free_skb;
+ 
+ 	/* prepend radiotap information */
+-	ieee80211_add_rx_radiotap_header(local, skb, rate, needed_headroom,
+-					 false);
++	/* BRN */
++	if ( (status->flag & RX_FLAG_INC_EXT_STATE) != 0 ) {
++		ieee80211_add_rx_radiotap_header(local, skb, rate, needed_headroom, true, &ext_rx_status);
++	} else {
++		ieee80211_add_rx_radiotap_header(local, skb, rate, needed_headroom, true, NULL);
++	}
++	/* BRN */
++	//ieee80211_add_rx_radiotap_header(local, skb, rate, needed_headroom,
++	//				 false);
+ 
+ 	skb_set_mac_header(skb, 0);
+ 	skb->ip_summed = CHECKSUM_UNNECESSARY;
+diff -rupN backports-build/net/mac80211/tx.c backports-build-fin/net/mac80211/tx.c
+--- backports-build/net/mac80211/tx.c	2015-09-09 15:15:02.230004731 +0200
++++ backports-build-fin/net/mac80211/tx.c	2015-09-09 13:56:01.918126304 +0200
+@@ -1669,7 +1669,7 @@ void ieee80211_xmit(struct ieee80211_sub
+ 	ieee80211_tx(sdata, sta, skb, false);
+ }
+ 
+-static bool ieee80211_parse_tx_radiotap(struct sk_buff *skb)
++static bool ieee80211_parse_tx_radiotap(struct sk_buff *skb, struct ieee80211_local *local)
+ {
+ 	struct ieee80211_radiotap_iterator iterator;
+ 	struct ieee80211_radiotap_header *rthdr =
+@@ -1681,7 +1681,7 @@ static bool ieee80211_parse_tx_radiotap(
+ 	
+ 	/* BRN */
+ 	int bitrate, retries, i, queue;
+-	struct ieee80211_supported_band *sband = tx->local->hw.wiphy->bands[tx->channel->band];
++	struct ieee80211_supported_band *sband = local->hw.wiphy->bands[/*tx->channel->band*/0];
+ 
+ 	u8 known = 0; //mcs
+   /* BRN */
+@@ -1743,220 +1743,219 @@ static bool ieee80211_parse_tx_radiotap(
+     /* Get the rate parameter from the radiotap header, 
+      * allowing rate selection on a per-packet basis 
+      */
+-+    case IEEE80211_RADIOTAP_RATE:
+-+      if ( *iterator.this_arg != RADIOTAP_RATE_MCS_INVALID ) {
+-+        bitrate = (*iterator.this_arg) * 5;
+-+        //printk("Found valid rate: %d\n", (int)bitrate);
+-+
+-+        for (i = 0; i < sband->n_bitrates; i++) {
+-+          if (sband->bitrates[i].bitrate == bitrate)
+-+            break;
+-+        }
+-+        if (i != sband->n_bitrates) {
+-+          //printk("RATE0: %d\n", bitrate);
+-+          info->control.rates[0].idx = i;
+-+        }
+-+      }
+-+
+-+      break;
+-+
+-+    /*
+-+     * BRN-Extension
+-+     */
+-+    case IEEE80211_RADIOTAP_DATA_RETRIES:
+-+      retries = (*iterator.this_arg);
+-+      //printk("TRIES0: %d\n", retries);
+-+      info->control.rates[1].count = retries;
+-+      break;
+-+
+-+    case IEEE80211_RADIOTAP_MCS: {
+-+      //patch from: http://www.mail-archive.com/ath9k-devel@lists.ath9k.org/msg05643.html
+-+      u8 flags, mcs_index;
+-+      known = *(iterator.this_arg);
+-+      flags = *(iterator.this_arg + 1);
+-+      mcs_index = *(iterator.this_arg + 2);
+-+
+-+      if ( mcs_index != RADIOTAP_RATE_MCS_INVALID ) {
+-+        //printk("Found valid mcs: known: %d flags: %d mcs_index: %d\n",(int)known, (int)flags, (int)mcs_index);
+-+        // set Band width
+-+        if (known & IEEE80211_RADIOTAP_MCS_HAVE_BW) {
+-+          if (flags & IEEE80211_RADIOTAP_MCS_BW_40)
+-+            info->control.rates[0].flags |= IEEE80211_TX_RC_40_MHZ_WIDTH;
+-+        } else {
+-+          //TODO
+-+        }
+-+
+-+        // set Rate index
+-+        info->control.rates[0].flags |= IEEE80211_TX_RC_MCS;
+-+
+-+        if (known & IEEE80211_RADIOTAP_MCS_HAVE_MCS) {
+-+          info->control.rates[0].idx = mcs_index;
+-+        } else {
+-+         info->control.rates[0].idx = 0;  // may not reasonable......
+-+        }
+-+
+-+        // set Guard interval
+-+        if (known & IEEE80211_RADIOTAP_MCS_HAVE_GI) {
+-+          if (flags & IEEE80211_RADIOTAP_MCS_SGI) {
+-+            info->control.rates[0].flags |= IEEE80211_TX_RC_SHORT_GI;
+-+          }
+-+        } else {
+-+         //TODO
+-+        }
+-+
+-+        // set FMT
+-+        if (known & IEEE80211_RADIOTAP_MCS_HAVE_FMT) {
+-+          if (flags & IEEE80211_RADIOTAP_MCS_FMT_GF) {
+-+            info->control.rates[0].flags |= IEEE80211_TX_RC_GREEN_FIELD;
+-+          }
+-+        } else {
+-+         //TODO
+-+        }
+-+
+-+        // set FEC
+-+        if (known & IEEE80211_RADIOTAP_MCS_HAVE_FEC) {
+-+          if (flags & IEEE80211_RADIOTAP_MCS_FEC_LDPC) {
+-+            info->flags |= IEEE80211_TX_CTL_LDPC;
+-+          }
+-+        }
+-+      }
+-+
+-+      break;
+-+    }
+-+
+-+
+-+    case IEEE80211_RADIOTAP_MULTIRATE: {
+-+      int rate_i, i;
+-+
+-+      u8 *multi_mcs = (uint8_t*)(iterator.this_arg + 4);
+-+
+-+      //printk("multirate:\n");
+-+
+-+      for ( rate_i = 0; rate_i < 4; rate_i++ ) {
+-+
+-+        //printk("%d.: ",rate_i);
+-+
+-+        if ( (multi_mcs[rate_i] & 1) != 1 ) { //no mcs
+-+          //printk("no_mcs ");
+-+
+-+          if ( (*(iterator.this_arg + rate_i)) != RADIOTAP_RATE_MCS_INVALID ) {
+-+            bitrate = (*(iterator.this_arg + rate_i)) * 5;
+-+
+-+            //printk("rate: %d ",(int)bitrate);
+-+            for (i = 0; i < sband->n_bitrates; i++) {
+-+              if (sband->bitrates[i].bitrate == bitrate)
+-+                break;
+-+            }
+-+            if (i != sband->n_bitrates) {
+-+              //printk("index: %d ",(int)i);
+-+              info->control.rates[rate_i].idx = i;
+-+            } else {
+-+              //printk("index: invalid ");
+-+            }
+-+
+-+          } else {
+-+            //printk("invalid rate");
+-+          }
+-+
+-+          //printk("\n");
+-+        } else {
+-+          //printk("mcs ");
+-+          u8 mcs_flags = (multi_mcs[rate_i] >> 1) & 127;
+-+          u8 c_rate = *(iterator.this_arg + rate_i);
+-+          u8 mcs_index = c_rate & 31;
+-+          u8 bandwidth = (c_rate & 96) >> 5;
+-+          u8 guard_interval = (c_rate & 128) >> 7;
+-+
+-+          u8 flag_fec = mcs_flags & 1;
+-+          u8 flag_htmode = (mcs_flags >> 1) & 1;
+-+          u8 flag_short_preamble = (mcs_flags >> 2) & 1;
+-+          u8 flag_stbc = (mcs_flags >> 3) & 1;
+-+
+-+          u8 flags = bandwidth | (guard_interval << 2) | (flag_htmode << 3) | (flag_fec << 4); 
+-+
+-+          //printk(" bandwith: %d guard: %d mcs: %d",(int)bandwidth,(int)guard_interval,(int)mcs_index);
+-+          //printk(" fec: %d htmode: %d preamble: %d stbc: %d\n",(int)flag_fec,(int)flag_htmode,(int)flag_short_preamble,(int)flag_stbc);
+-+
+-+          if (known & IEEE80211_RADIOTAP_MCS_HAVE_BW) {
+-+            switch (flags & 3) {
+-+	      case IEEE80211_RADIOTAP_MCS_BW_20:
+-+	        //Do nothing.
+-+	        break;
+-+	      case IEEE80211_RADIOTAP_MCS_BW_40:
+-+                info->control.rates[rate_i].flags |= IEEE80211_TX_RC_40_MHZ_WIDTH;
+-+		break;
+-+	      case IEEE80211_RADIOTAP_MCS_BW_20L:  //TODO: want we want is to send the packets on one of the channel (upper or lower) 
+-+	      case IEEE80211_RADIOTAP_MCS_BW_20U:  //and not on both
+-+                info->control.rates[rate_i].flags |= IEEE80211_TX_RC_DUP_DATA;
+-+		break;
+-+	    }
+-+          }
+-+
+-+          // set Rate index
+-+          info->control.rates[rate_i].flags |= IEEE80211_TX_RC_MCS;
+-+
+-+          if (known & IEEE80211_RADIOTAP_MCS_HAVE_MCS) {
+-+            info->control.rates[rate_i].idx = mcs_index;
+-+          } else {
+-+            info->control.rates[rate_i].idx = 0;  // may not reasonable......
+-+          }
+-+
+-+          // set Guard interval
+-+          if (known & IEEE80211_RADIOTAP_MCS_HAVE_GI) {
+-+            if (flags & IEEE80211_RADIOTAP_MCS_SGI) {
+-+              info->control.rates[rate_i].flags |= IEEE80211_TX_RC_SHORT_GI;
+-+            }
+-+          } else {
+-+           //TODO
+-+          }
+-+
+-+          // set FMT
+-+          if (known & IEEE80211_RADIOTAP_MCS_HAVE_FMT) {
+-+            if (flags & IEEE80211_RADIOTAP_MCS_FMT_GF) {
+-+              info->control.rates[rate_i].flags |= IEEE80211_TX_RC_GREEN_FIELD;
+-+            }
+-+          } else {
+-+           //TODO
+-+          }
+-+
+-+          // set FEC
+-+          if (known & IEEE80211_RADIOTAP_MCS_HAVE_FEC) {
+-+            if (flags & IEEE80211_RADIOTAP_MCS_FEC_LDPC) {
+-+              info->flags |= IEEE80211_TX_CTL_LDPC;
+-+            }
+-+          }
+-+	  
+-+	  if ( flag_short_preamble == 1 ) {
+-+	    info->control.rates[rate_i].flags |= IEEE80211_TX_RC_USE_SHORT_PREAMBLE;
+-+	  }
+-+
+-+	  if ( flag_stbc == 1 ) {
+-+	    info->control.rates[rate_i].flags |= IEEE80211_TX_CTL_STBC;
+-+	  }
+-+
+-+        }
+-+      }
+-+      break;
+-+    }
+-+
+-+		case IEEE80211_RADIOTAP_DATA_MULTIRETRIES: {
+-+		  int i;
+-+		
+-+		  for ( i = 0; i < 4; i++ ) {
+-+		    retries = *(iterator.this_arg + i);
+-+		    //printk("TRIES%d: %d\n", i, retries);
+-+    		    info->control.rates[i].count = retries;
+-+    		  }
+-+			break;
+-+		}
+-+		case IEEE80211_RADIOTAP_QUEUE:
+-+			queue = (*iterator.this_arg);
+-+//		printk("Queue: %d\n", queue);
+-+			break;
+-+		/*
+-+		 * BRN-Extension end
+-+		 */
+-+
++    case IEEE80211_RADIOTAP_RATE:
++      if ( *iterator.this_arg != RADIOTAP_RATE_MCS_INVALID ) {
++        bitrate = (*iterator.this_arg) * 5;
++        //printk("Found valid rate: %d\n", (int)bitrate);
++
++        for (i = 0; i < sband->n_bitrates; i++) {
++          if (sband->bitrates[i].bitrate == bitrate)
++            break;
++        }
++        if (i != sband->n_bitrates) {
++          //printk("RATE0: %d\n", bitrate);
++          info->control.rates[0].idx = i;
++        }
++      }
++
++      break;
++
++    /*
++     * BRN-Extension
++     */
++    case IEEE80211_RADIOTAP_DATA_RETRIES:
++      retries = (*iterator.this_arg);
++      //printk("TRIES0: %d\n", retries);
++      info->control.rates[1].count = retries;
++      break;
++
++    case IEEE80211_RADIOTAP_MCS: {
++      //patch from: http://www.mail-archive.com/ath9k-devel@lists.ath9k.org/msg05643.html
++      u8 flags, mcs_index;
++      known = *(iterator.this_arg);
++      flags = *(iterator.this_arg + 1);
++      mcs_index = *(iterator.this_arg + 2);
++
++      if ( mcs_index != RADIOTAP_RATE_MCS_INVALID ) {
++        //printk("Found valid mcs: known: %d flags: %d mcs_index: %d\n",(int)known, (int)flags, (int)mcs_index);
++        // set Band width
++        if (known & IEEE80211_RADIOTAP_MCS_HAVE_BW) {
++          if (flags & IEEE80211_RADIOTAP_MCS_BW_40)
++            info->control.rates[0].flags |= IEEE80211_TX_RC_40_MHZ_WIDTH;
++        } else {
++          //TODO
++        }
++
++        // set Rate index
++        info->control.rates[0].flags |= IEEE80211_TX_RC_MCS;
++
++        if (known & IEEE80211_RADIOTAP_MCS_HAVE_MCS) {
++          info->control.rates[0].idx = mcs_index;
++        } else {
++         info->control.rates[0].idx = 0;  // may not reasonable......
++        }
++
++        // set Guard interval
++        if (known & IEEE80211_RADIOTAP_MCS_HAVE_GI) {
++          if (flags & IEEE80211_RADIOTAP_MCS_SGI) {
++            info->control.rates[0].flags |= IEEE80211_TX_RC_SHORT_GI;
++          }
++        } else {
++         //TODO
++        }
++
++        // set FMT
++        if (known & IEEE80211_RADIOTAP_MCS_HAVE_FMT) {
++          if (flags & IEEE80211_RADIOTAP_MCS_FMT_GF) {
++            info->control.rates[0].flags |= IEEE80211_TX_RC_GREEN_FIELD;
++          }
++        } else {
++         //TODO
++        }
++
++        // set FEC
++        if (known & IEEE80211_RADIOTAP_MCS_HAVE_FEC) {
++          if (flags & IEEE80211_RADIOTAP_MCS_FEC_LDPC) {
++            info->flags |= IEEE80211_TX_CTL_LDPC;
++          }
++        }
++      }
++
++      break;
++    }
++
++
++    case IEEE80211_RADIOTAP_MULTIRATE: {
++      int rate_i, i;
++
++      u8 *multi_mcs = (uint8_t*)(iterator.this_arg + 4);
++
++      //printk("multirate:\n");
++
++      for ( rate_i = 0; rate_i < 4; rate_i++ ) {
++
++        //printk("%d.: ",rate_i);
++
++        if ( (multi_mcs[rate_i] & 1) != 1 ) { //no mcs
++          //printk("no_mcs ");
++
++          if ( (*(iterator.this_arg + rate_i)) != RADIOTAP_RATE_MCS_INVALID ) {
++            bitrate = (*(iterator.this_arg + rate_i)) * 5;
++
++            //printk("rate: %d ",(int)bitrate);
++            for (i = 0; i < sband->n_bitrates; i++) {
++              if (sband->bitrates[i].bitrate == bitrate)
++                break;
++            }
++            if (i != sband->n_bitrates) {
++              //printk("index: %d ",(int)i);
++              info->control.rates[rate_i].idx = i;
++            } else {
++              //printk("index: invalid ");
++            }
++
++          } else {
++            //printk("invalid rate");
++          }
++
++          //printk("\n");
++        } else {
++          //printk("mcs ");
++          u8 mcs_flags = (multi_mcs[rate_i] >> 1) & 127;
++          u8 c_rate = *(iterator.this_arg + rate_i);
++          u8 mcs_index = c_rate & 31;
++          u8 bandwidth = (c_rate & 96) >> 5;
++          u8 guard_interval = (c_rate & 128) >> 7;
++
++          u8 flag_fec = mcs_flags & 1;
++          u8 flag_htmode = (mcs_flags >> 1) & 1;
++          u8 flag_short_preamble = (mcs_flags >> 2) & 1;
++          u8 flag_stbc = (mcs_flags >> 3) & 1;
++
++          u8 flags = bandwidth | (guard_interval << 2) | (flag_htmode << 3) | (flag_fec << 4); 
++
++          //printk(" bandwith: %d guard: %d mcs: %d",(int)bandwidth,(int)guard_interval,(int)mcs_index);
++          //printk(" fec: %d htmode: %d preamble: %d stbc: %d\n",(int)flag_fec,(int)flag_htmode,(int)flag_short_preamble,(int)flag_stbc);
++
++          if (known & IEEE80211_RADIOTAP_MCS_HAVE_BW) {
++            switch (flags & 3) {
++	      case IEEE80211_RADIOTAP_MCS_BW_20:
++	        //Do nothing.
++	        break;
++	      case IEEE80211_RADIOTAP_MCS_BW_40:
++                info->control.rates[rate_i].flags |= IEEE80211_TX_RC_40_MHZ_WIDTH;
++		break;
++	      case IEEE80211_RADIOTAP_MCS_BW_20L:  //TODO: want we want is to send the packets on one of the channel (upper or lower) 
++	      case IEEE80211_RADIOTAP_MCS_BW_20U:  //and not on both
++                info->control.rates[rate_i].flags |= IEEE80211_TX_RC_DUP_DATA;
++		break;
++	    }
++          }
++
++          // set Rate index
++          info->control.rates[rate_i].flags |= IEEE80211_TX_RC_MCS;
++
++          if (known & IEEE80211_RADIOTAP_MCS_HAVE_MCS) {
++            info->control.rates[rate_i].idx = mcs_index;
++          } else {
++            info->control.rates[rate_i].idx = 0;  // may not reasonable......
++          }
++
++          // set Guard interval
++          if (known & IEEE80211_RADIOTAP_MCS_HAVE_GI) {
++            if (flags & IEEE80211_RADIOTAP_MCS_SGI) {
++              info->control.rates[rate_i].flags |= IEEE80211_TX_RC_SHORT_GI;
++            }
++          } else {
++           //TODO
++          }
++
++          // set FMT
++          if (known & IEEE80211_RADIOTAP_MCS_HAVE_FMT) {
++            if (flags & IEEE80211_RADIOTAP_MCS_FMT_GF) {
++              info->control.rates[rate_i].flags |= IEEE80211_TX_RC_GREEN_FIELD;
++            }
++          } else {
++           //TODO
++          }
++
++          // set FEC
++          if (known & IEEE80211_RADIOTAP_MCS_HAVE_FEC) {
++            if (flags & IEEE80211_RADIOTAP_MCS_FEC_LDPC) {
++              info->flags |= IEEE80211_TX_CTL_LDPC;
++            }
++          }
++	  
++	  if ( flag_short_preamble == 1 ) {
++	    info->control.rates[rate_i].flags |= IEEE80211_TX_RC_USE_SHORT_PREAMBLE;
++	  }
++
++	  if ( flag_stbc == 1 ) {
++	    info->control.rates[rate_i].flags |= IEEE80211_TX_CTL_STBC;
++	  }
++
++        }
++      }
++      break;
++    }
++
++		case IEEE80211_RADIOTAP_DATA_MULTIRETRIES: {
++		  int i;
++		
++		  for ( i = 0; i < 4; i++ ) {
++		    retries = *(iterator.this_arg + i);
++		    //printk("TRIES%d: %d\n", i, retries);
++    		    info->control.rates[i].count = retries;
++    		  }
++			break;
++		}
++		case IEEE80211_RADIOTAP_QUEUE:
++			queue = (*iterator.this_arg);
++//		printk("Queue: %d\n", queue);
++			break;
++		/*
++		 * BRN-Extension end
++		 */
+ 
+ 		/*
+ 		 * Please update the file
+@@ -2053,7 +2052,7 @@ netdev_tx_t ieee80211_monitor_start_xmit
+ 		      IEEE80211_TX_CTL_INJECTED;
+ 
+ 	/* process and remove the injection radiotap header */
+-	if (!ieee80211_parse_tx_radiotap(skb))
++	if (!ieee80211_parse_tx_radiotap(skb, local)) //BRN: add local to get bands in parse_rad....
+ 		goto fail;
+ 
+ 	rcu_read_lock();
